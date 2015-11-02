@@ -48,4 +48,21 @@ describe "the truth"
       end
     end
   end
+
+  describe "promise_handler"
+    it "returns a handler string"
+      handler=$( _promise_handler PROMISE HANDLER VALUE )
+      assert equal "$handler" " \
+value=\$(HANDLER \$(cat VALUE)) \
+if [[ \$? -eq 0 ]] \
+then \
+  echo _promise_resolve \"PROMISE\" \$value \
+  _promise_resolve \"PROMISE\" \$value \
+else \
+  echo REJECT PROMISE \
+  _promise_reject PROMISE \$? \
+fi \
+"
+    end
+  end
 end

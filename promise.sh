@@ -125,15 +125,18 @@ _promise_handler() {
   value=$3
 
   # TODO wrap this in a "try/catch block" so it doesn't break the chain
-
-  echo "value=\$($action \$(cat $value))"
   # TODO make sure that this gets the exit status of the value action
-  echo "if \$?"
-  echo "then"
-  echo "  resolve "$promise" \$value"
-  echo "else"
-  echo "  reject "$promise" \$?"
-  echo "fi"
+  echo " \
+value=\$($action \$(cat $value)) \
+if [[ \$? -eq 0 ]] \
+then \
+  echo _promise_resolve \"$promise\" \$value \
+  _promise_resolve \"$promise\" \$value \
+else \
+  echo REJECT $promise \
+  _promise_reject "$promise" \$? \
+fi \
+"
 }
 
 
@@ -163,11 +166,23 @@ _promise_then() {
     reason=$(cat $promise/reason)
     [[ -n $on_rejected ]] && _promise_resolve $new_promise $($on_rejected $reason) || _promise_reject $new_promise reason
   else
-    [[ -n "$on_fulfilled" ]] && handler "$new_promise" "$on_fulfilled" "$promise/value" >> $promise/on_fulfilled
-    [[ -n "$on_rejected" ]] && handler "$new_promise" "$on_rejected" "$promise/reason" >> $promise/on_rejected
+    [[ -n "$on_fulfilled" ]] && _promise_handler "$new_promise" "$on_fulfilled" "$promise/value" >> $promise/on_fulfilled
+    [[ -n "$on_rejected" ]] && _promise_handler "$new_promise" "$on_rejected" "$promise/reason" >> $promise/on_rejected
   fi
 
   echo $new_promise
+}
+
+_promise_cat() {
+  local promise
+
+  promise=$1
+
+  echo $promise && echo
+  [[ -f $promise/value ]] && echo $promise/value && cat $promise/value && echo
+  [[ -f $promise/reason ]] && echo $promise/reason && cat $promise/reason && echo
+  [[ -f $promise/on_resolved ]] && echo $promise/on_resolved && cat $promise/on_resolved && echo
+  [[ -f $promise/on_fulfilled ]] && echo $promise/on_fulfilled && cat $promise/on_fulfilled && echo
 }
 
 promise() {
@@ -193,6 +208,14 @@ reject() {
   name=$1
 
   promise $name | _reject $*
+}
+
+promise_cat() {
+  local name
+
+  name=$1
+
+  promise $name | _promise_cat $*
 }
 
 _then() {
