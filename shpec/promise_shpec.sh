@@ -56,10 +56,8 @@ describe "the truth"
 value=\$(HANDLER \$(cat VALUE)) \
 if [[ \$? -eq 0 ]] \
 then \
-  echo _promise_resolve \"PROMISE\" \$value \
   _promise_resolve \"PROMISE\" \$value \
 else \
-  echo REJECT PROMISE \
   _promise_reject PROMISE \$? \
 fi \
 "
