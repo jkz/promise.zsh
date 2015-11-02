@@ -24,7 +24,7 @@ random_string() {
   cat /dev/urandom | env LC_CTYPE=C tr -cd 'a-f0-9' | head -c 32
 }
 
-promise::path() {
+_promise_path() {
   local name
 
   name=$1
@@ -32,17 +32,17 @@ promise::path() {
   echo $PROMISE_ROOT/$name
 }
 
-promise::is_promise() {
+_promise_is_promise() {
   local name
   local promise
 
   name=$1
-  promise=$(promise::path $name)
+  promise=$(_promise_path $name)
 
   [[ -z "$name" ]] && [[ -f "$promise" ]]
 }
 
-promise::state() {
+_promise_state() {
   local promise
 
   promise=$1
@@ -52,7 +52,7 @@ promise::state() {
   echo "pending"
 }
 
-promise::new() {
+_promise_new() {
   local name
   local callbacks
   local on_fulfilled
@@ -63,7 +63,7 @@ promise::new() {
   # TODO reroll for clashes
   [[ -n "$name" ]] || name=$(random_string)
 
-  promise=$(promise::path $name)
+  promise=$(_promise_path $name)
 
   [[ -f "$promise" ]] && echo "Promise $name exists" && return 1
 
@@ -74,9 +74,8 @@ promise::new() {
   echo $promise
 }
 
-promise::resolve() {
+_promise_resolve() {
   # TODO run this async
-
   local promise
   local value
 
@@ -96,7 +95,7 @@ promise::resolve() {
   echo $promise
 }
 
-promise::reject() {
+_promise_reject() {
   local promise
   local reason
 
@@ -116,7 +115,7 @@ promise::reject() {
   echo $promise
 }
 
-promise::handler() {
+_promise_handler() {
   local promise
   local action
   local value
@@ -138,28 +137,32 @@ promise::handler() {
 }
 
 
-promise::then() {
+_promise_then() {
   local promise
   local new_promise
   local on_fulfilled
   local on_rejected
+  local value
+  local reason
 
   promise=$1
-  new_promise=$(promise::new)
+  new_promise=$(_promise_new)
 
   shift
 
   echo $* | cut -d ',' -f1 | read on_fulfilled
   echo $* | cut -d ',' -f2 | read on_rejected
 
-  if [[ -n $promise/value ]]
+  if [[ -f "$promise/value" ]]
   then
-    promise::resolve $new_promise $($on_resolved $(cat $promise/value))
-  elif [[ -n $promise/reason ]]
+    value=$(cat $promise/value)
+    [[ -n $on_fulfilled ]] && value=$($on_fulfilled $value)
+    _promise_resolve $new_promise value
+  elif [[ -f $promise/reason ]]
   then
-    promise::reject $new_promise $($on_rejected $(cat $promise/reason))
+    reason=$(cat $promise/reason)
+    [[ -n $on_rejected ]] && _promise_resolve $new_promise $($on_rejected $reason) || _promise_reject $new_promise reason
   else
-  then
     [[ -n "$on_fulfilled" ]] && handler "$new_promise" "$on_fulfilled" "$promise/value" >> $promise/on_fulfilled
     [[ -n "$on_rejected" ]] && handler "$new_promise" "$on_rejected" "$promise/reason" >> $promise/on_rejected
   fi
@@ -172,7 +175,7 @@ promise() {
 
   name=$1
 
-  promise::is_promise $name && promise::path $name || promise::new $name
+  _promise_is_promise $name && _promise_path $name || _promise_new $name
 }
 
 resolve() {
@@ -181,7 +184,7 @@ resolve() {
   name=$1
   shift
 
-  promise $name | .resolve $*
+  promise $name | _resolve $*
 }
 
 reject() {
@@ -189,45 +192,45 @@ reject() {
 
   name=$1
 
-  promise $name | .reject $*
+  promise $name | _reject $*
 }
 
-.then() {
+_then() {
   local promise
 
   read promise
 
-  promise::then $promise $*
+  _promise_then $promise $*
 }
 
-.catch() {
-  .then , $*
+_catch() {
+  _then , $*
 }
 
-.always() {
-  .then $*, $*
+_always() {
+  _then $*, $*
 }
 
-.resolve() {
+_resolve() {
   local promise
 
   read promise
 
-  promise::resolve $promise $*
+  _promise_resolve $promise $*
 }
 
-.reject() {
+_reject() {
   local promise
 
   read promise
 
-  promise::reject $promise $*
+  _promise_reject $promise $*
 }
 
-.state() {
+_state() {
   local promise
 
   read promise
 
-  promise::state $promise $*
+  _promise_state $promise $*
 }
